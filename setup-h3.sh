@@ -1,6 +1,3 @@
-cd /workspace
-
-cat > setup-h3.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -106,4 +103,3 @@ echo "Starting ComfyUI..."
 exec python main.py \
     --listen 0.0.0.0 \
     --port 8188
-EOF
