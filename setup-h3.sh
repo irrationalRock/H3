@@ -53,11 +53,12 @@ else
 fi
 
 # ---------------------------------------
-# Install ComfyUI if it isn't installed
+# Install ComfyUI if missing
 # ---------------------------------------
 
 if [ ! -d "$COMFYUI_DIR/.git" ]; then
     echo "Installing ComfyUI..."
+
     git clone \
         https://github.com/comfyanonymous/ComfyUI.git \
         "$COMFYUI_DIR"
@@ -68,7 +69,7 @@ fi
 cd "$COMFYUI_DIR"
 
 # ---------------------------------------
-# Install Python dependencies
+# Install ComfyUI requirements
 # ---------------------------------------
 
 echo "Installing ComfyUI requirements..."
@@ -78,7 +79,28 @@ echo "Installing Hugging Face tools..."
 pip install -U huggingface_hub hf_xet
 
 # ---------------------------------------
-# Create persistent directories
+# Re-check PyTorch after requirements
+# ---------------------------------------
+
+TORCH_CUDA=$(python - <<'PY'
+import torch
+print(torch.version.cuda or "")
+PY
+)
+
+if [ "$TORCH_CUDA" != "13.0" ]; then
+    echo "ComfyUI requirements changed PyTorch."
+    echo "Reinstalling CUDA 13.0 PyTorch..."
+
+    pip install --upgrade --force-reinstall \
+        torch \
+        torchvision \
+        torchaudio \
+        --index-url https://download.pytorch.org/whl/cu130
+fi
+
+# ---------------------------------------
+# Create persistent folders
 # ---------------------------------------
 
 mkdir -p \
@@ -90,7 +112,7 @@ mkdir -p \
     "$COMFYUI_DIR/output"
 
 # ---------------------------------------
-# Download only if file is missing
+# Download helper
 # ---------------------------------------
 
 download_if_missing() {
@@ -98,6 +120,7 @@ download_if_missing() {
     remote_file="$2"
     local_file="$3"
     minimum_bytes="$4"
+    download_dir="$5"
 
     if [ -f "$local_file" ]; then
         actual_bytes=$(stat -c%s "$local_file")
@@ -121,30 +144,30 @@ download_if_missing() {
     hf download \
         "$repo" \
         "$remote_file" \
-        --local-dir "$(dirname "$local_file")"
+        --local-dir "$download_dir"
 
     if [ ! -f "$local_file" ]; then
-        echo "ERROR: Expected file was not created:"
-        echo "$local_file"
+        echo "ERROR: Download completed but expected file was not found:"
+        echo "  $local_file"
         exit 1
     fi
 
     actual_bytes=$(stat -c%s "$local_file")
 
     if [ "$actual_bytes" -lt "$minimum_bytes" ]; then
-        echo "ERROR: Download appears incomplete."
+        echo "ERROR: Downloaded file is smaller than expected."
         echo "File: $local_file"
         echo "Expected at least: $minimum_bytes bytes"
         echo "Found: $actual_bytes bytes"
         exit 1
     fi
 
-    echo "✓ Download completed:"
+    echo "✓ Download complete:"
     echo "  $local_file"
 }
 
 # ---------------------------------------
-# MiniMax H3 models
+# MiniMax H3 files
 # ---------------------------------------
 
 REPO="Comfy-Org/MiniMax-H3"
@@ -155,7 +178,8 @@ download_if_missing \
     "$REPO" \
     "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors" \
     "$MODELS_DIR/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors" \
-    20000000000
+    20000000000 \
+    "$MODELS_DIR"
 
 # Qwen3-VL NVFP4 AWQ text encoder
 # ~15.7 GB
@@ -163,7 +187,8 @@ download_if_missing \
     "$REPO" \
     "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" \
     "$MODELS_DIR/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" \
-    15000000000
+    15000000000 \
+    "$MODELS_DIR"
 
 # Video VAE
 # ~5.21 GB
@@ -171,7 +196,8 @@ download_if_missing \
     "$REPO" \
     "vae/minimax_h3_video_vae_fp16.safetensors" \
     "$MODELS_DIR/vae/minimax_h3_video_vae_fp16.safetensors" \
-    5200000000
+    5200000000 \
+    "$MODELS_DIR"
 
 # Audio VAE
 # ~605 MB
@@ -179,17 +205,19 @@ download_if_missing \
     "$REPO" \
     "vae/minimax_h3_audio_vae_fp32.safetensors" \
     "$MODELS_DIR/vae/minimax_h3_audio_vae_fp32.safetensors" \
-    600000000
+    600000000 \
+    "$MODELS_DIR"
 
 # ---------------------------------------
-# MiniMax H3 Turbo 8-step LoRA
+# Turbo 8-step LoRA
 # ---------------------------------------
 
 download_if_missing \
     "lightx2v/Minimax-h3-Turbo" \
     "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors" \
     "$MODELS_DIR/loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors" \
-    1900000000
+    1900000000 \
+    "$MODELS_DIR/loras"
 
 # ---------------------------------------
 # Final environment check
@@ -203,8 +231,24 @@ import torch
 print("PyTorch:", torch.__version__)
 print("CUDA used by PyTorch:", torch.version.cuda)
 print("GPU:", torch.cuda.get_device_name(0))
-print("VRAM:", round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 1), "GB")
+print(
+    "VRAM:",
+    round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 1),
+    "GB"
+)
 PY
+
+# ---------------------------------------
+# Storage check
+# ---------------------------------------
+
+echo
+echo "Workspace usage:"
+du -sh /workspace
+
+echo
+echo "Model usage:"
+du -sh "$MODELS_DIR"/* 2>/dev/null || true
 
 # ---------------------------------------
 # Start ComfyUI
