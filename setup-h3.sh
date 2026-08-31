@@ -8,12 +8,59 @@ export HF_HOME=/workspace/.cache/huggingface
 mkdir -p "$HF_HOME"
 
 # ---------------------------------------
+# Check PyTorch CUDA version
+# ---------------------------------------
+
+echo "Checking PyTorch CUDA version..."
+
+TORCH_CUDA=$(python - <<'PY'
+try:
+    import torch
+    print(torch.version.cuda or "")
+except Exception:
+    print("")
+PY
+)
+
+if [ "$TORCH_CUDA" != "13.0" ]; then
+    echo "Current PyTorch CUDA version: ${TORCH_CUDA:-not installed}"
+    echo "Installing PyTorch with CUDA 13.0 support..."
+
+    pip uninstall -y torch torchvision torchaudio || true
+
+    pip install \
+        torch \
+        torchvision \
+        torchaudio \
+        --index-url https://download.pytorch.org/whl/cu130
+
+    echo "Verifying PyTorch..."
+
+    python - <<'PY'
+import torch
+
+print("PyTorch:", torch.__version__)
+print("PyTorch CUDA:", torch.version.cuda)
+print("GPU:", torch.cuda.get_device_name(0))
+
+if torch.version.cuda != "13.0":
+    raise RuntimeError(
+        f"Expected PyTorch CUDA 13.0, got {torch.version.cuda}"
+    )
+PY
+else
+    echo "✓ PyTorch already uses CUDA 13.0"
+fi
+
+# ---------------------------------------
 # Install ComfyUI if it isn't installed
 # ---------------------------------------
 
 if [ ! -d "$COMFYUI_DIR/.git" ]; then
     echo "Installing ComfyUI..."
-    git clone https://github.com/comfyanonymous/ComfyUI.git "$COMFYUI_DIR"
+    git clone \
+        https://github.com/comfyanonymous/ComfyUI.git \
+        "$COMFYUI_DIR"
 else
     echo "✓ ComfyUI already installed."
 fi
@@ -43,7 +90,7 @@ mkdir -p \
     "$COMFYUI_DIR/output"
 
 # ---------------------------------------
-# Function: download only when necessary
+# Download only if file is missing
 # ---------------------------------------
 
 download_if_missing() {
@@ -64,6 +111,7 @@ download_if_missing() {
         echo "⚠ File exists but appears incomplete:"
         echo "  $local_file"
         echo "Removing incomplete file..."
+
         rm -f "$local_file"
     fi
 
@@ -76,7 +124,7 @@ download_if_missing() {
         --local-dir "$(dirname "$local_file")"
 
     if [ ! -f "$local_file" ]; then
-        echo "ERROR: Download finished but expected file was not found:"
+        echo "ERROR: Expected file was not created:"
         echo "$local_file"
         exit 1
     fi
@@ -84,7 +132,7 @@ download_if_missing() {
     actual_bytes=$(stat -c%s "$local_file")
 
     if [ "$actual_bytes" -lt "$minimum_bytes" ]; then
-        echo "ERROR: Downloaded file is too small."
+        echo "ERROR: Download appears incomplete."
         echo "File: $local_file"
         echo "Expected at least: $minimum_bytes bytes"
         echo "Found: $actual_bytes bytes"
@@ -96,12 +144,13 @@ download_if_missing() {
 }
 
 # ---------------------------------------
-# MiniMax H3 model downloads
+# MiniMax H3 models
 # ---------------------------------------
 
 REPO="Comfy-Org/MiniMax-H3"
 
-# Pruned H3 FL2VA INT8 diffusion model
+# Pruned H3 FL2VA INT8
+# ~21 GB
 download_if_missing \
     "$REPO" \
     "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors" \
@@ -109,6 +158,7 @@ download_if_missing \
     20000000000
 
 # Qwen3-VL NVFP4 AWQ text encoder
+# ~15.7 GB
 download_if_missing \
     "$REPO" \
     "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" \
@@ -116,6 +166,7 @@ download_if_missing \
     15000000000
 
 # Video VAE
+# ~5.21 GB
 download_if_missing \
     "$REPO" \
     "vae/minimax_h3_video_vae_fp16.safetensors" \
@@ -123,18 +174,37 @@ download_if_missing \
     5200000000
 
 # Audio VAE
+# ~605 MB
 download_if_missing \
     "$REPO" \
     "vae/minimax_h3_audio_vae_fp32.safetensors" \
     "$MODELS_DIR/vae/minimax_h3_audio_vae_fp32.safetensors" \
     600000000
 
-# Turbo 8-step LoRA
+# ---------------------------------------
+# MiniMax H3 Turbo 8-step LoRA
+# ---------------------------------------
+
 download_if_missing \
     "lightx2v/Minimax-h3-Turbo" \
     "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors" \
     "$MODELS_DIR/loras/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors" \
     1900000000
+
+# ---------------------------------------
+# Final environment check
+# ---------------------------------------
+
+echo
+echo "Final environment:"
+python - <<'PY'
+import torch
+
+print("PyTorch:", torch.__version__)
+print("CUDA used by PyTorch:", torch.version.cuda)
+print("GPU:", torch.cuda.get_device_name(0))
+print("VRAM:", round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 1), "GB")
+PY
 
 # ---------------------------------------
 # Start ComfyUI
