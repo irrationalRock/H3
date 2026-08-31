@@ -101,19 +101,19 @@ download_if_missing() {
 
 REPO="Comfy-Org/MiniMax-H3"
 
-# Main H3 FL2VA INT8 model
+# Pruned H3 FL2VA INT8 diffusion model
 download_if_missing \
     "$REPO" \
-    "diffusion_models/minimax_h3_fl2va_int8_convrot.safetensors" \
-    "$MODELS_DIR/diffusion_models/minimax_h3_fl2va_int8_convrot.safetensors" \
-    33000000000
+    "diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors" \
+    "$MODELS_DIR/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors" \
+    20000000000
 
-# Qwen3-VL INT8 text encoder
+# Qwen3-VL NVFP4 AWQ text encoder
 download_if_missing \
     "$REPO" \
-    "text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors" \
-    "$MODELS_DIR/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors" \
-    26000000000
+    "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" \
+    "$MODELS_DIR/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" \
+    15000000000
 
 # Video VAE
 download_if_missing \
@@ -129,10 +129,7 @@ download_if_missing \
     "$MODELS_DIR/vae/minimax_h3_audio_vae_fp32.safetensors" \
     600000000
 
-# ---------------------------------------
-# MiniMax H3 Turbo 8-step LoRA
-# ---------------------------------------
-
+# Turbo 8-step LoRA
 download_if_missing \
     "lightx2v/Minimax-h3-Turbo" \
     "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors" \
