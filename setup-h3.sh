@@ -44,8 +44,8 @@ fi
 
 source "$VENV_DIR/bin/activate"
 
-# Use this exact interpreter for all Python and pip operations. This avoids
-# accidentally using a system-level pip executable.
+# Use this exact interpreter for all Python and pip operations.
+# This avoids accidentally using a system-level pip executable.
 PYTHON="$VENV_DIR/bin/python"
 PIP=("$PYTHON" -m pip)
 
@@ -73,6 +73,7 @@ if [ "$TORCH_CUDA" != "13.0" ]; then
     echo "Installing PyTorch with CUDA 13.0 support..."
 
     "${PIP[@]}" uninstall -y torch torchvision torchaudio || true
+
     "${PIP[@]}" install \
         torch \
         torchvision \
@@ -230,13 +231,13 @@ download_if_missing \
     15000000000 \
     "$MODELS_DIR"
 
-# Video VAE
-# ~5.21 GB
+# Video VAE INT8 ConvRot
+# ~2.8 GB
 download_if_missing \
     "$REPO" \
-    "vae/minimax_h3_video_vae_fp16.safetensors" \
-    "$MODELS_DIR/vae/minimax_h3_video_vae_fp16.safetensors" \
-    5200000000 \
+    "vae/minimax_h3_video_vae_int8_convrot.safetensors" \
+    "$MODELS_DIR/vae/minimax_h3_video_vae_int8_convrot.safetensors" \
+    2800000000 \
     "$MODELS_DIR"
 
 # Audio VAE
